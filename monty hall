@@ -1,0 +1,35 @@
+import random
+
+N = 1000  # number of simulated games
+
+
+def play(switch: bool) -> bool:
+    """Play one Monty Hall game. Returns True if the player wins the car."""
+    doors = [0, 1, 2]
+    car = random.choice(doors)
+    pick = random.choice(doors)
+
+    # Host opens a door that is neither the player's pick nor the car
+    host_options = [d for d in doors if d != pick and d != car]
+    opened = random.choice(host_options)
+
+    if switch:
+        # Move to the one remaining closed door
+        pick = next(d for d in doors if d != pick and d != opened)
+
+    return pick == car
+
+
+def simulate(switch: bool, n: int = N) -> int:
+    return sum(play(switch) for _ in range(n))
+
+
+if __name__ == "__main__":
+    stay_wins = simulate(switch=False)
+    switch_wins = simulate(switch=True)
+
+    print(f"Games per strategy: {N}")
+    print(f"Stay   : {stay_wins} wins ({stay_wins / N:.1%})")
+    print(f"Switch : {switch_wins} wins ({switch_wins / N:.1%})")
+    print("Theory : stay = 33.3%, switch = 66.7%")
+
