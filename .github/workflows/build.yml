@@ -1,0 +1,108 @@
+name: Build data outputs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ github.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Resolve project paths
+        id: paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          req=''
+          collect=''
+          analysis=''
+
+          if [[ -f requirements.txt ]]; then
+            req='requirements.txt'
+          elif [[ -f '3. házi/elelmiszersivatagok/requirements.txt' ]]; then
+            req='3. házi/elelmiszersivatagok/requirements.txt'
+          fi
+
+          if [[ -f scripts/01_data_collection.py ]]; then
+            collect='scripts/01_data_collection.py'
+          elif [[ -f '3. házi/elelmiszersivatagok/01_data_collection.py' ]]; then
+            collect='3. házi/elelmiszersivatagok/01_data_collection.py'
+          fi
+
+          if [[ -f scripts/02_analysis.py ]]; then
+            analysis='scripts/02_analysis.py'
+          elif [[ -f '3. házi/elelmiszersivatagok/02_analysis.py' ]]; then
+            analysis='3. házi/elelmiszersivatagok/02_analysis.py'
+          fi
+
+          if [[ -z "$req" ]]; then
+            echo 'requirements.txt was not found at expected locations.' >&2
+            exit 1
+          fi
+
+          if [[ -z "$collect" ]]; then
+            echo '01_data_collection.py was not found at expected locations.' >&2
+            exit 1
+          fi
+
+          if [[ -z "$analysis" ]]; then
+            echo '02_analysis.py was not found at expected locations.' >&2
+            exit 1
+          fi
+
+          {
+            echo "requirements=$req"
+            echo "data_collection=$collect"
+            echo "analysis=$analysis"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r "${{ steps.paths.outputs.requirements }}"
+
+      - name: Run data collection
+        run: python "${{ steps.paths.outputs.data_collection }}"
+
+      - name: Run analysis
+        run: python "${{ steps.paths.outputs.analysis }}"
+
+      - name: Copy generated files into docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs
+          cp results.geojson docs/results.geojson
+          cp summary.json docs/summary.json
+
+      - name: Commit generated files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add docs/results.geojson docs/summary.json
+
+          if git diff --staged --quiet; then
+            echo "No generated file changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update generated docs data files"
+          git push origin HEAD:main

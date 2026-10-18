@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Élelmiszer sivatagok Magyarországon</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  >
+  <style>
+    :root {
+      --bg: #f6f8f7;
+      --card: #ffffff;
+      --text: #1f2933;
+      --muted: #52606d;
+      --border: #d9e2ec;
+      --accent: #7f1d1d;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .oldal {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    h1 {
+      margin: 0 0 0.75rem;
+      font-size: clamp(1.7rem, 2.8vw, 2.5rem);
+      line-height: 1.2;
+    }
+
+    .bevezeto {
+      margin: 0 0 1.25rem;
+      color: var(--muted);
+    }
+
+    .racs {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .kartya,
+    .doboz {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+
+    .kartya {
+      padding: 0.85rem 1rem;
+    }
+
+    .kartya-cim {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .kartya-ertek {
+      margin: 0.25rem 0 0;
+      font-size: clamp(1.4rem, 2.7vw, 2rem);
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .doboz {
+      padding: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1.15rem;
+    }
+
+    #terkep {
+      width: 100%;
+      height: clamp(320px, 55vh, 650px);
+      border-radius: 8px;
+    }
+
+    .jelmagyarazat {
+      background: rgba(255, 255, 255, 0.92);
+      padding: 0.55rem 0.7rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.86rem;
+      line-height: 1.4;
+    }
+
+    .jelmagyarazat .sor {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      margin-top: 0.2rem;
+    }
+
+    .jelmagyarazat i {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    .allapot,
+    .hiba {
+      margin: 0 0 0.8rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    .allapot {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #9a3412;
+    }
+
+    .hiba {
+      display: none;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+    }
+
+    .tabla-kontener {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 500px;
+    }
+
+    th, td {
+      padding: 0.55rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+      font-size: 0.95rem;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+    }
+
+    .vegkov {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    footer {
+      margin-top: 1rem;
+      color: #64748b;
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body>
+  <noscript>
+    <p class="hiba" style="display:block; margin: 1rem;">Ehhez az oldalhoz JavaScript szükséges. Kérjük, engedélyezze a JavaScriptet a böngészőben.</p>
+  </noscript>
+
+  <main class="oldal">
+    <h1>Élelmiszer sivatagok Magyarországon</h1>
+    <p class="bevezeto">Az alábbi áttekintés településszinten mutatja meg, hol nincs helyben élelmiszerüzlet Magyarországon. A térkép és az összesítések segítenek azonosítani, hol a legnagyobb az ellátási távolság és a lakossági kitettség.</p>
+
+    <section class="racs" aria-label="Kulcsmutatók">
+      <article class="kartya">
+        <p class="kartya-cim">Bolt nélküli települések száma</p>
+        <p class="kartya-ertek" id="kartya-telepulesek">—</p>
+      </article>
+      <article class="kartya">
+        <p class="kartya-cim">Érintett lakosság</p>
+        <p class="kartya-ertek" id="kartya-lakossag">—</p>
+      </article>
+      <article class="kartya">
+        <p class="kartya-cim">Legnagyobb távolság a legközelebbi bolttól</p>
+        <p class="kartya-ertek" id="kartya-max-tav">—</p>
+      </article>
+    </section>
+
+    <section class="doboz" aria-label="Interaktív térkép">
+      <h2>Települési kategóriák térképen</h2>
+      <p id="allapot" class="allapot">Adatok betöltése folyamatban…</p>
+      <p id="hibauzenet" class="hiba" role="alert" aria-live="assertive"></p>
+      <div id="terkep" role="img" aria-label="Magyarország települései boltellátottság szerinti kategóriákban"></div>
+    </section>
+
+    <section class="doboz" aria-label="Vármegyei arányok oszlopdiagramja">
+      <h2>Bolt nélküli települések aránya vármegyénként</h2>
+      <canvas id="varmegyeChart" aria-label="Bolt nélküli települések aránya vármegyénként oszlopdiagram" role="img"></canvas>
+    </section>
+
+    <section class="doboz" aria-label="Top 10 legtávolabbi település táblázat">
+      <h2>Top 10 legtávolabbi település</h2>
+      <div class="tabla-kontener">
+        <table>
+          <thead>
+            <tr>
+              <th>Település</th>
+              <th>Vármegye</th>
+              <th>Távolság a legközelebbi bolttól (km)</th>
+              <th>Lakosság (fő)</th>
+            </tr>
+          </thead>
+          <tbody id="top10-test">
+            <tr><td colspan="4">Az adatok betöltése folyamatban…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="doboz" aria-label="Következtetés">
+      <h2>Rövid következtetés</h2>
+      <p class="vegkov">A bolt nélküli települések koncentrációja és az elérési távolság jól mutatja, hol lehet szükség célzott helyi ellátási beavatkozásra. A térképi és vármegyei nézet együtt segít a területi prioritások kijelölésében.</p>
+    </section>
+
+    <footer>Forrás: OpenStreetMap, KSH</footer>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script>
+    const CATEGORIES = [
+      { key: 'van bolt', label: 'van bolt', color: '#4caf50' },
+      { key: 'nincs bolt, 5 km-en belül van', label: 'nincs bolt, 5 km-en belül van', color: '#f6c453' },
+      { key: 'nincs bolt, 5–10 km', label: 'nincs bolt, 5–10 km', color: '#ef7f44' },
+      { key: 'nincs bolt, 10 km felett', label: 'nincs bolt, 10 km felett', color: '#7f1d1d' }
+    ];
+
+    const fallbackColor = '#9ca3af';
+    const fmtInt = new Intl.NumberFormat('hu-HU');
+    const fmtDec = new Intl.NumberFormat('hu-HU', { maximumFractionDigits: 2 });
+
+    const allapotElem = document.getElementById('allapot');
+    const hibaElem = document.getElementById('hibauzenet');
+
+    const map = L.map('terkep', { zoomControl: true }).setView([47.1, 19.4], 7);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap hozzájárulók'
+    }).addTo(map);
+
+    function normalizaltKategoriak(ertek) {
+      if (!ertek) return '';
+      return String(ertek)
+        .toLowerCase()
+        .replace(/-/g, '–')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function szinKategoriahoz(kat) {
+      const norm = normalizaltKategoriak(kat);
+      const talalat = CATEGORIES.find((item) => item.key === norm || item.label === norm);
+      return talalat ? talalat.color : fallbackColor;
+    }
+
+    function keresTulajdonsag(obj, kulcsok, alap = null) {
+      if (!obj) return alap;
+      for (const kulcs of kulcsok) {
+        if (obj[kulcs] !== undefined && obj[kulcs] !== null && obj[kulcs] !== '') return obj[kulcs];
+      }
+      return alap;
+    }
+
+    async function elsoLetezoJson(utvonalak) {
+      let utolsoHiba = null;
+      for (const utvonal of utvonalak) {
+        try {
+          const valasz = await fetch(utvonal, { cache: 'no-store' });
+          if (valasz.ok) return { data: await valasz.json(), source: utvonal };
+        } catch (e) {
+          utolsoHiba = e;
+        }
+      }
+      if (utolsoHiba) throw utolsoHiba;
+      throw new Error('A megadott adatfájlok nem érhetők el.');
+    }
+
+    function hibaMegjelenit(uzenet) {
+      hibaElem.textContent = uzenet;
+      hibaElem.style.display = 'block';
+      allapotElem.textContent = 'Az oldal részleges adatokkal jelenik meg.';
+    }
+
+    function feltoltKartya(summary) {
+      const telepulesNincsBolt = keresTulajdonsag(summary, ['settlements_without_shop', 'telepulesek_bolt_nelkul', 'nincs_bolt_telepules_db'], 0);
+      const lakossagNincsBolt = keresTulajdonsag(summary, ['population_without_shop', 'lakossag_bolt_nelkul', 'nincs_bolt_lakossag_fo'], 0);
+      const maxTav = keresTulajdonsag(summary, ['max_distance_km', 'legnagyobb_tavolsag_km', 'maximum_tavolsag_km'], null);
+
+      document.getElementById('kartya-telepulesek').textContent = fmtInt.format(Number(telepulesNincsBolt) || 0);
+      document.getElementById('kartya-lakossag').textContent = fmtInt.format(Number(lakossagNincsBolt) || 0) + ' fő';
+      document.getElementById('kartya-max-tav').textContent = maxTav === null ? '—' : `${fmtDec.format(Number(maxTav) || 0)} km`;
+    }
+
+    function telepulesInfoTulajdonsagok(props) {
+      return {
+        nev: keresTulajdonsag(props, ['name', 'telepules_nev', 'telepules', 'settlement_name'], 'ismeretlen település'),
+        lakossag: Number(keresTulajdonsag(props, ['population', 'lakossag', 'resident_population'], 0)) || 0,
+        boltok: Number(keresTulajdonsag(props, ['shop_count', 'boltok_szama', 'shops'], 0)) || 0,
+        tav: keresTulajdonsag(props, ['distance_to_nearest_shop_km', 'nearest_shop_distance_km', 'tavolsag_legkozelebbi_bolt_km'], null),
+        kategoria: normalizaltKategoriak(keresTulajdonsag(props, ['category', 'kategoria'], '')),
+        varmegye: keresTulajdonsag(props, ['county', 'varmegye', 'megye'], '—')
+      };
+    }
+
+    function terkepMegjelenit(geojson) {
+      const info = L.control();
+
+      info.onAdd = function () {
+        this._div = L.DomUtil.create('div', 'jelmagyarazat');
+        this.update();
+        return this._div;
+      };
+
+      info.update = function (adat) {
+        if (!adat) {
+          this._div.innerHTML = '<strong>Mutasson egy településre</strong><br>részletes adatokért.';
+          return;
+        }
+        this._div.innerHTML = `
+          <strong>${adat.nev}</strong><br>
+          Lakosság: ${fmtInt.format(adat.lakossag)} fő<br>
+          Boltok száma: ${fmtInt.format(adat.boltok)}<br>
+          Távolság a legközelebbi bolttól: ${adat.tav === null ? '—' : `${fmtDec.format(Number(adat.tav) || 0)} km`}
+        `;
+      };
+      info.addTo(map);
+
+      function stilus(feature) {
+        const adat = telepulesInfoTulajdonsagok(feature.properties || {});
+        return {
+          weight: 0.5,
+          opacity: 1,
+          color: '#475569',
+          fillOpacity: 0.75,
+          fillColor: szinKategoriahoz(adat.kategoria)
+        };
+      }
+
+      function kiemel(e) {
+        const layer = e.target;
+        layer.setStyle({ weight: 2, color: '#0f172a' });
+        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+          layer.bringToFront();
+        }
+        info.update(telepulesInfoTulajdonsagok(layer.feature.properties || {}));
+      }
+
+      function alaphelyzet(e) {
+        geoLayer.resetStyle(e.target);
+        info.update();
+      }
+
+      function onEachFeature(_feature, layer) {
+        layer.on({ mouseover: kiemel, mouseout: alaphelyzet });
+      }
+
+      const geoLayer = L.geoJSON(geojson, { style: stilus, onEachFeature }).addTo(map);
+
+      if (geoLayer.getBounds().isValid()) {
+        map.fitBounds(geoLayer.getBounds(), { padding: [20, 20] });
+      }
+
+      const legend = L.control({ position: 'bottomright' });
+      legend.onAdd = function () {
+        const div = L.DomUtil.create('div', 'jelmagyarazat');
+        div.innerHTML = '<strong>Kategóriák</strong>';
+        CATEGORIES.forEach((c) => {
+          div.innerHTML += `<div class="sor"><i style="background:${c.color}"></i>${c.label}</div>`;
+        });
+        return div;
+      };
+      legend.addTo(map);
+    }
+
+    function countyRowsSummaryBol(summary) {
+      const nyers = keresTulajdonsag(summary, [
+        'county_breakdown',
+        'varmegyei_bontas',
+        'county_summary',
+        'breakdown_by_county'
+      ], null);
+
+      if (!nyers) return [];
+
+      if (Array.isArray(nyers)) {
+        return nyers.map((row) => {
+          const total = Number(keresTulajdonsag(row, ['total_settlements', 'osszes_telepules', 'telepules_db'], 0)) || 0;
+          const noShop = Number(keresTulajdonsag(row, ['settlements_without_shop', 'bolt_nelkuli_telepulesek', 'nincs_bolt_telepules_db'], 0)) || 0;
+          return {
+            county: keresTulajdonsag(row, ['county', 'varmegye', 'megye'], 'Ismeretlen'),
+            total,
+            noShop
+          };
+        });
+      }
+
+      if (typeof nyers === 'object') {
+        return Object.entries(nyers).map(([county, row]) => {
+          const total = Number(keresTulajdonsag(row, ['total_settlements', 'osszes_telepules', 'telepules_db'], 0)) || 0;
+          const noShop = Number(keresTulajdonsag(row, ['settlements_without_shop', 'bolt_nelkuli_telepulesek', 'nincs_bolt_telepules_db'], 0)) || 0;
+          return { county, total, noShop };
+        });
+      }
+
+      return [];
+    }
+
+    function countyRowsGeojsonBol(geojson) {
+      const halmaz = new Map();
+      (geojson.features || []).forEach((feature) => {
+        const adat = telepulesInfoTulajdonsagok(feature.properties || {});
+        const county = adat.varmegye || 'Ismeretlen';
+        const aktualis = halmaz.get(county) || { county, total: 0, noShop: 0 };
+        aktualis.total += 1;
+        if (adat.boltok === 0) aktualis.noShop += 1;
+        halmaz.set(county, aktualis);
+      });
+      return Array.from(halmaz.values());
+    }
+
+    function rajzolVarmegyeChart(sorok) {
+      const rendezett = sorok
+        .filter((r) => r.total > 0)
+        .map((r) => ({
+          county: r.county,
+          share: (r.noShop / r.total) * 100
+        }))
+        .sort((a, b) => b.share - a.share);
+
+      const ctx = document.getElementById('varmegyeChart');
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: rendezett.map((r) => r.county),
+          datasets: [{
+            label: 'Bolt nélküli települések aránya (%)',
+            data: rendezett.map((r) => Number(r.share.toFixed(2))),
+            backgroundColor: '#b91c1c'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => `Arány: ${fmtDec.format(context.parsed.y)}%`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: (value) => `${value}%`
+              },
+              title: {
+                display: true,
+                text: 'Arány (%)'
+              }
+            },
+            x: {
+              ticks: {
+                maxRotation: 65,
+                minRotation: 35
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function frissitTop10(geojson) {
+      const top10 = (geojson.features || [])
+        .map((feature) => telepulesInfoTulajdonsagok(feature.properties || {}))
+        .filter((row) => row.tav !== null && !Number.isNaN(Number(row.tav)))
+        .sort((a, b) => Number(b.tav) - Number(a.tav))
+        .slice(0, 10);
+
+      const tbody = document.getElementById('top10-test');
+      if (top10.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4">Nincs megjeleníthető távolsági adat.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = top10.map((row) => `
+        <tr>
+          <td>${row.nev}</td>
+          <td>${row.varmegye || '—'}</td>
+          <td>${fmtDec.format(Number(row.tav) || 0)} km</td>
+          <td>${fmtInt.format(row.lakossag)}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function init() {
+      let summary;
+      let geojson;
+
+      try {
+        const summaryResult = await elsoLetezoJson([
+          './summary.json'
+        ]);
+        summary = summaryResult.data;
+        feltoltKartya(summary);
+      } catch (_e) {
+        hibaMegjelenit('A summary.json nem található, ezért a kulcsmutatók nem tölthetők be.');
+      }
+
+      try {
+        const geoResult = await elsoLetezoJson([
+          './results.geojson'
+        ]);
+        geojson = geoResult.data;
+        terkepMegjelenit(geojson);
+        frissitTop10(geojson);
+      } catch (_e) {
+        hibaMegjelenit('A results.geojson nem található, ezért a térkép és a Top 10 tábla nem jeleníthető meg.');
+      }
+
+      try {
+        if (summary || geojson) {
+          const sorok = summary ? countyRowsSummaryBol(summary) : [];
+          const vegsoSorok = sorok.length > 0 ? sorok : (geojson ? countyRowsGeojsonBol(geojson) : []);
+          if (vegsoSorok.length > 0) {
+            rajzolVarmegyeChart(vegsoSorok);
+          } else {
+            throw new Error('Nincs vármegyei bontás.');
+          }
+        } else {
+          throw new Error('Nincs adatforrás.');
+        }
+      } catch (_e) {
+        hibaMegjelenit('A vármegyei oszlopdiagramhoz nem áll rendelkezésre megfelelő adat.');
+      }
+
+      if (hibaElem.style.display !== 'block') {
+        allapotElem.textContent = 'Az adatok sikeresen betöltődtek.';
+      }
+
+      setTimeout(() => map.invalidateSize(), 100);
+    }
+
+    init();
+  </script>
+</body>
+</html>
