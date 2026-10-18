@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Szomorúbb lett a zene?</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.3/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    :root{--bg:#090b12;--panel:#121724;--panel2:#181e2d;--text:#f4f7fb;--muted:#9ba8bd;--pink:#ff4f9a;--violet:#8c7bff;--cyan:#45d9e6;--gold:#ffc857;--green:#6ee7b7;--line:#273044}
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 15% 0%,#22204a 0,#090b12 35%),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5} .wrap{width:min(1180px,calc(100% - 32px));margin:auto}
+    header{padding:58px 0 34px} .eyebrow{color:var(--pink);font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:.78rem} h1{font-size:clamp(2rem,5vw,4.25rem);line-height:1.03;max-width:920px;margin:12px 0 20px;letter-spacing:-.045em} .intro{max-width:760px;color:var(--muted);font-size:1.08rem}
+    .status{margin:20px 0;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#101522;color:var(--muted)} .status.error{border-color:#f27791;color:#ffd0d9}.hidden{display:none!important}
+    .numbers{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:18px 0 28px}.number,.card{background:linear-gradient(145deg,rgba(24,30,45,.96),rgba(14,18,29,.96));border:1px solid var(--line);border-radius:20px;box-shadow:0 18px 60px rgba(0,0,0,.18)} .number{padding:22px}.number strong{display:block;font-size:clamp(1.75rem,4vw,3rem);letter-spacing:-.05em;color:var(--cyan)} .number:nth-child(2) strong{color:var(--pink)} .number:nth-child(3) strong{color:var(--gold)} .number span{display:block;color:var(--muted);font-size:.92rem;margin-top:7px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}.card{padding:20px;margin-bottom:18px}.card h2{font-size:1.08rem;margin:0 0 5px}.card p,.note{color:var(--muted);font-size:.9rem;margin:0 0 16px}.chartbox{position:relative;height:330px}.wide{grid-column:1/-1}
+    table{width:100%;border-collapse:collapse;font-size:.9rem} th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)} th{color:var(--muted);font-weight:600} td small{color:var(--muted)} .song-list{display:grid;grid-template-columns:1fr 1fr;gap:18px}.song-list h3{font-size:.92rem;margin:0 0 8px;color:var(--green)}.song-list h3.sad{color:#ff7b9b}.song{padding:8px 0;border-bottom:1px solid var(--line)}.song b{display:block;font-size:.88rem}.song span{display:block;color:var(--muted);font-size:.78rem}
+    footer{padding:18px 0 48px;color:var(--muted);font-size:.82rem} footer a{color:var(--cyan)} .takeaway{font-size:1.08rem;color:var(--text);margin:0}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:4px 9px;color:var(--muted);font-size:.75rem}
+    @media(max-width:760px){.numbers,.grid{grid-template-columns:1fr}.wide{grid-column:auto}.chartbox{height:290px}.song-list{grid-template-columns:1fr}header{padding-top:35px}.card{padding:16px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div class="eyebrow">Adatokból hangulat</div>
+      <h1>Szomorúbb lett a zene? Hogyan változott a slágerek hangulata az évtizedek alatt</h1>
+      <p class="intro">A Spotify minden dalhoz hozzárendel egy „valence” értéket, amely azt jelzi, mennyire hangzik boldognak, pozitívnak vagy derűsnek a szám. Az alábbi elemzés azt vizsgálja, hogyan alakult ez a hangulat az évek, évtizedek és műfajok során.</p>
+      <div id="status" class="status">Adatok betöltése folyamatban…</div>
+    </header>
+
+    <section id="content" class="hidden">
+      <section class="numbers" aria-label="Fő mutatók">
+        <div class="number"><strong id="v80">–</strong><span>Az 1980-as évek átlagos valence értéke</span></div>
+        <div class="number"><strong id="v10">–</strong><span>A 2010-es évek átlagos valence értéke</span></div>
+        <div class="number"><strong id="change">–</strong><span>Változás az 1980-as évektől a 2010-es évekig</span></div>
+      </section>
+
+      <section class="grid">
+        <article class="card wide"><h2>1. Átlagos hangulat évenként</h2><p>A pontok az adott év legalább 30 dalának átlagát mutatják; a simított vonal ötéves mozgóátlag.</p><div class="chartbox"><canvas id="yearChart"></canvas></div></article>
+        <article class="card"><h2>2. Hogyan változott a zene hangzása?</h2><p>Az értékek 0 és 1 közötti skálán szerepelnek.</p><div class="chartbox"><canvas id="decadeChart"></canvas></div></article>
+        <article class="card"><h2>3. Boldog és szomorú dalok aránya</h2><p>„Boldog”: valence &gt; 0,6. „Szomorú”: valence &lt; 0,4. A köztes dalok nem jelennek meg.</p><div class="chartbox"><canvas id="moodChart"></canvas></div></article>
+        <article class="card wide"><h2>4. Átlagos hangulat műfajonként</h2><p>A hat kiemelt műfaj összehasonlítása, növekvő sorrendben.</p><div class="chartbox"><canvas id="genreChart"></canvas></div></article>
+        <article class="card wide"><h2>A legboldogabb és legszomorúbb népszerű dalok</h2><p>Csak a 70 feletti népszerűségi értékű számok kerültek a listába.</p><div class="song-list"><div><h3>Legboldogabb 5</h3><div id="happySongs"></div></div><div><h3 class="sad">Legszomorúbb 5</h3><div id="sadSongs"></div></div></div></article>
+        <article class="card wide"><h2>Mit mondanak az adatok?</h2><p id="takeaway" class="takeaway">Az összegzés előkészítése folyamatban…</p></article>
+      </section>
+    </section>
+    <footer>Forrás: Spotify Web API a TidyTuesday projektben (R4DS közösség). Az adatokat 2020 januárjában gyűjtötték; a régebbi évtizedekben kevesebb dal szerepel, ezért az összehasonlításokat ennek fényében érdemes értelmezni.</footer>
+  </main>
+<script>
+(() => {
+  const urls = [
+    'https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-21/spotify_songs.csv',
+    'https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2020/2020-01-21/spotify_songs.csv'
+  ];
+  const status = document.getElementById('status');
+  const content = document.getElementById('content');
+  const colors = {text:'#f4f7fb', muted:'#9ba8bd', grid:'rgba(155,168,189,.16)', pink:'#ff4f9a', violet:'#8c7bff', cyan:'#45d9e6', gold:'#ffc857', green:'#6ee7b7', red:'#ff7b9b'};
+  const decadeOrder = ['1960-as évek','1970-es évek','1980-as évek','1990-es évek','2000-es évek','2010-es évek'];
+  const genreOrder = ['pop','rock','rap','r&b','latin','edm'];
+  const avg = a => a.length ? a.reduce((s,x) => s + x, 0) / a.length : null;
+  const fmt = x => x == null || !Number.isFinite(x) ? '–' : x.toFixed(2).replace('.', ',');
+  const pct = x => x == null || !Number.isFinite(x) ? '–' : `${x.toFixed(1).replace('.', ',')}%`;
+  const norm = s => String(s ?? '').trim().toLowerCase();
+  function chartDefaults(){ return {responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:colors.text}}}, scales:{x:{ticks:{color:colors.muted},grid:{color:colors.grid}},y:{ticks:{color:colors.muted},grid:{color:colors.grid},min:0,max:1}}}; }
+  function yearFrom(s){ const m = String(s ?? '').match(/(19|20)\d{2}/); return m ? Number(m[0]) : null; }
+  function moving(values, radius=2){ return values.map((_,i) => { const a=values.slice(Math.max(0,i-radius),Math.min(values.length,i+radius+1)).filter(x=>x!=null); return avg(a); }); }
+  function showError(message){status.className='status error';status.textContent=`Az adatok betöltése nem sikerült: ${message}`;}
+  function parse(url){return new Promise((resolve,reject)=>Papa.parse(url,{download:true,header:true,skipEmptyLines:true,complete:r=>resolve(r.data),error:e=>reject(e)}));}
+  async function load(){
+    let rows, last;
+    for(const url of urls){try{rows=await parse(url); if(rows?.length) break;}catch(e){last=e;}}
+    if(!rows?.length) throw last || new Error('üres válasz');
+    const unique = new Map();
+    rows.forEach(r=>{const id=String(r.track_id||'').trim(); if(id && !unique.has(id)) unique.set(id,r);});
+    const songs = [...unique.values()].map(r=>({
+      ...r, year:yearFrom(r.track_album_release_date), valence:Number(r.valence), energy:Number(r.energy), danceability:Number(r.danceability), acousticness:Number(r.acousticness), popularity:Number(r.track_popularity), genre:norm(r.playlist_genre)
+    })).filter(r=>r.year && Number.isFinite(r.valence) && r.year>=1960 && r.year<=2019);
+    render(songs);
+  }
+  function render(songs){
+    const byYear = new Map(), byDecade = new Map(), byGenre = new Map();
+    songs.forEach(s=>{if(!byYear.has(s.year))byYear.set(s.year,[]);byYear.get(s.year).push(s); const d=Math.floor(s.year/10)*10; if(d>=1960&&d<=2010){if(!byDecade.has(d))byDecade.set(d,[]);byDecade.get(d).push(s)} if(genreOrder.includes(s.genre)){if(!byGenre.has(s.genre))byGenre.set(s.genre,[]);byGenre.get(s.genre).push(s)}});
+    const validYears=[...byYear.keys()].filter(y=>byYear.get(y).length>=30).sort((a,b)=>a-b), yearVals=validYears.map(y=>avg(byYear.get(y).map(s=>s.valence)));
+    const decadeVals=decadeOrder.map(label=>{const d=Number(label.slice(0,4));return byDecade.get(d)||[]});
+    const v80=avg((byDecade.get(1980)||[]).map(s=>s.valence)), v10=avg((byDecade.get(2010)||[]).map(s=>s.valence)), change=v80 ? (v10-v80)/v80*100 : null;
+    document.getElementById('v80').textContent=fmt(v80); document.getElementById('v10').textContent=fmt(v10); document.getElementById('change').textContent=change==null?'–':`${change>=0?'+':''}${change.toFixed(1).replace('.',',')}%`;
+    new Chart(document.getElementById('yearChart'),{type:'line',data:{labels:validYears,datasets:[{label:'Éves átlag',data:yearVals,borderColor:colors.pink,backgroundColor:'rgba(255,79,154,.15)',pointRadius:2,tension:.25},{label:'5 éves mozgóátlag',data:moving(yearVals),borderColor:colors.cyan,borderWidth:3,pointRadius:0,tension:.25}]},options:chartDefaults()});
+    new Chart(document.getElementById('decadeChart'),{type:'bar',data:{labels:decadeOrder.map(x=>x.replace(' évek','')),datasets:[{label:'Valence',data:decadeVals.map(a=>avg(a.map(s=>s.valence))),backgroundColor:colors.pink},{label:'Energia',data:decadeVals.map(a=>avg(a.map(s=>s.energy))),backgroundColor:colors.violet},{label:'Táncolhatóság',data:decadeVals.map(a=>avg(a.map(s=>s.danceability))),backgroundColor:colors.cyan},{label:'Akusztikusság',data:decadeVals.map(a=>avg(a.map(s=>s.acousticness))),backgroundColor:colors.gold}]},options:chartDefaults()});
+    const happy=decadeVals.map(a=>a.length? a.filter(s=>s.valence>.6).length/a.length*100:0), sad=decadeVals.map(a=>a.length? a.filter(s=>s.valence<.4).length/a.length*100:0);
+    new Chart(document.getElementById('moodChart'),{type:'bar',data:{labels:decadeOrder.map(x=>x.replace(' évek','')),datasets:[{label:'Boldog dalok',data:happy,backgroundColor:colors.green},{label:'Szomorú dalok',data:sad,backgroundColor:colors.red}]},options:{...chartDefaults(),scales:{x:{stacked:true,ticks:{color:colors.muted},grid:{color:colors.grid}},y:{stacked:true,min:0,max:100,ticks:{color:colors.muted,callback:v=>v+'%'},grid:{color:colors.grid}}}}});
+    const genres=genreOrder.map(g=>({g,v:avg((byGenre.get(g)||[]).map(s=>s.valence))})).filter(x=>x.v!=null).sort((a,b)=>a.v-b.v);
+    new Chart(document.getElementById('genreChart'),{type:'bar',data:{labels:genres.map(x=>x.g.toUpperCase()),datasets:[{label:'Átlagos valence',data:genres.map(x=>x.v),backgroundColor:[colors.violet,colors.cyan,colors.gold,colors.pink,colors.green,colors.red]}]},options:{...chartDefaults(),indexAxis:'y'}});
+    const popular=songs.filter(s=>s.popularity>70 && Number.isFinite(s.popularity)); const happySongs=[...popular].sort((a,b)=>b.valence-a.valence).slice(0,5), sadSongs=[...popular].sort((a,b)=>a.valence-b.valence).slice(0,5);
+    const songHTML=s=>`<div class="song"><b>${escapeHTML(s.track_name||'Ismeretlen cím')}</b><span>${escapeHTML(s.track_artist||'Ismeretlen előadó')} · ${s.year} · valence ${fmt(s.valence)}</span></div>`;
+    document.getElementById('happySongs').innerHTML=happySongs.map(songHTML).join('')||'<span class="note">Nincs elegendő adat.</span>'; document.getElementById('sadSongs').innerHTML=sadSongs.map(songHTML).join('')||'<span class="note">Nincs elegendő adat.</span>';
+    const direction=change==null?'nem állapítható meg':change>1?'növekedést':change<-1?'csökkenést':'alig változó hangulatot';
+    document.getElementById('takeaway').textContent=`Az 1980-as évektől a 2010-es évekig az átlagos valence ${direction} mutat: ${fmt(v80)} értékről ${fmt(v10)} értékre változott. Ez nem jelenti azt, hogy minden korszak minden dala hasonló, de a teljes mintában jól látható a zenei hangulat irányváltása.`;
+    status.className='status'; status.textContent=`${songs.length.toLocaleString('hu-HU')} egyedi dal elemzése elkészült.`; content.classList.remove('hidden');
+  }
+  function escapeHTML(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+  load().catch(e=>showError(e?.message||'ismeretlen hiba'));
+})();
+</script>
+</body>
+</html>
