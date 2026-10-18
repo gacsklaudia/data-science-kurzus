@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Szomorúbb lett a zene?</title>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root{--bg:#090b12;--panel:#121724;--panel2:#181e2d;--text:#f4f7fb;--muted:#9ba8bd;--pink:#ff4f9a;--violet:#8c7bff;--cyan:#45d9e6;--gold:#ffc857;--green:#6ee7b7;--line:#273044}
@@ -64,7 +63,38 @@ document.addEventListener('DOMContentLoaded', () => {
   function yearFrom(s){ const m = String(s ?? '').match(/(19|20)\d{2}/); return m ? Number(m[0]) : null; }
   function moving(values, radius=2){ return values.map((_,i) => { const a=values.slice(Math.max(0,i-radius),Math.min(values.length,i+radius+1)).filter(x=>x!=null); return avg(a); }); }
   function showError(message){status.className='status error';status.textContent=`Az adatok betöltése nem sikerült: ${message}`;}
-  function parse(url){return new Promise((resolve,reject)=>Papa.parse(url,{download:true,header:true,skipEmptyLines:true,complete:r=>resolve(r.data),error:e=>reject(e)}));}
+  function parseCSV(text){
+    const rows=[]; let row=[]; let field=''; let quoted=false;
+    for(let i=0;i<text.length;i++){
+      const char=text[i];
+      if(quoted){
+        if(char==='"'){
+          if(text[i+1]==='"'){field+='"';i++;}
+          else{quoted=false;}
+        }else{field+=char;}
+      }else if(char==='"'){
+        quoted=true;
+      }else if(char===','){
+        row.push(field);field='';
+      }else if(char==='\n' || char==='\r'){
+        if(char==='\r' && text[i+1]==='\n')i++;
+        row.push(field);field='';
+        if(row.some(value=>value!==''))rows.push(row);
+        row=[];
+      }else{
+        field+=char;
+      }
+    }
+    if(field!=='' || row.length){row.push(field);if(row.some(value=>value!==''))rows.push(row);}
+    if(!rows.length)return [];
+    const headers=rows[0].map(header=>header.replace(/^\uFEFF/,'').trim());
+    return rows.slice(1).map(values=>headers.reduce((object,header,index)=>{object[header]=values[index] ?? '';return object;},{}));
+  }
+  async function parse(url){
+    const response=await fetch(url);
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    return parseCSV(await response.text());
+  }
   async function load(){
     let rows, last;
     for(const url of urls){try{rows=await parse(url); if(rows?.length) break;}catch(e){last=e;}}
